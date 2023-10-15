@@ -1,7 +1,9 @@
 # vocal-remover
 
-[![Release](https://img.shields.io/github/release/tsurumeso/vocal-remover.svg)](https://github.com/tsurumeso/vocal-remover/releases/latest)
-[![Release](https://img.shields.io/github/downloads/tsurumeso/vocal-remover/total.svg)](https://github.com/tsurumeso/vocal-remover/releases)
+
+![Latest release](https://img.shields.io/github/commit-activity/t/filispeen/vocal-remover-cli)
+[![GitHub all releases](https://img.shields.io/github/downloads/filispeen/vocal-remover-cli/total)](https://github.com/filispeen/vocal-remover-cli/releases/latest)
+[![Releases](https://img.shields.io/github/downloads/filispeen/vocal-remover-cli/total.svg)](https://github.com/filispeen/vocal-remover-cli/releases)
 
 This is a deep-learning-based tool to extract instrumental track from your songs.
 
@@ -15,7 +17,7 @@ Download the original version from [here](https://github.com/tsurumeso/vocal-rem
 
 ### Install package
 ```
-pip install git+https://github.com/filispeen/vocal-remover
+pip install git+https://github.com/filispeen/vocal-remover-cli
 ```
 
 ## Usage
