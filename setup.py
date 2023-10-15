@@ -15,7 +15,7 @@ setup(
     url = 'https://github.com/filispeen/so-vits-svc-discord-webhook-notification',
     keywords = ['vc', 'remover', 'cli', 'voice-removal', 'voice', 'vc-remover', 'voice-remover'],
       classifiers=[
-    'Development Status :: 5 - Production/Stable',      # Chose either "3 - Alpha", "4 - Beta" or "5 - Production/Stable" as the current state of your package
+    'Development Status :: 4 - Beta',      # Chose either "3 - Alpha", "4 - Beta" or "5 - Production/Stable" as the current state of your package
     'Intended Audience :: Developers',      # Define that your audience are developers
     'Topic :: Software Development :: Build Tools',
     'License :: OSI Approved :: MIT License',   # Again, pick a license
