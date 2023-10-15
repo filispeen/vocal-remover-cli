@@ -60,7 +60,7 @@ path/to/dataset/
 
 ### Train a model
 ```
-remover train --dataset path/to/dataset --reduction_rate 0.5 --mixup_rate 0.5 --gpu 0
+vc-remover train --dataset path/to/dataset --reduction_rate 0.5 --mixup_rate 0.5 --gpu 0
 ```
 
 ## References
