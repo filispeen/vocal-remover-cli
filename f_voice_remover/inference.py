@@ -105,29 +105,14 @@ class Separator(object):
         return y_spec, v_spec
 
 
-def main():
-    p = argparse.ArgumentParser()
-    p.add_argument('--gpu', '-g', type=int, default=-1)
-    p.add_argument('--pretrained_model', '-P', type=str, default='models/baseline.pth')
-    p.add_argument('--input', '-i', required=True)
-    p.add_argument('--sr', '-r', type=int, default=44100)
-    p.add_argument('--n_fft', '-f', type=int, default=2048)
-    p.add_argument('--hop_length', '-H', type=int, default=1024)
-    p.add_argument('--batchsize', '-B', type=int, default=4)
-    p.add_argument('--cropsize', '-c', type=int, default=256)
-    p.add_argument('--output_image', '-I', action='store_true')
-    p.add_argument('--postprocess', '-p', action='store_true')
-    p.add_argument('--tta', '-t', action='store_true')
-    p.add_argument('--output_dir', '-o', type=str, default="")
-    args = p.parse_args()
-
+def start_inference(a_n_fft, a_pretrained_model, a_gpu, a_input, a_sr, a_hop_length, a_batchsize, a_cropsize, a_postprocess, a_tta, a_output_dir, a_output_image):
     print('loading model...', end=' ')
     device = torch.device('cpu')
-    model = nets.CascadedNet(args.n_fft, 32, 128)
-    model.load_state_dict(torch.load(args.pretrained_model, map_location=device))
-    if args.gpu >= 0:
+    model = nets.CascadedNet(a_n_fft, 32, 128)
+    model.load_state_dict(torch.load(a_pretrained_model, map_location=device))
+    if a_gpu >= 0:
         if torch.cuda.is_available():
-            device = torch.device('cuda:{}'.format(args.gpu))
+            device = torch.device('cuda:{}'.format(a_gpu))
             model.to(device)
         elif torch.backends.mps.is_available() and torch.backends.mps.is_built():
             device = torch.device('mps')
@@ -136,8 +121,8 @@ def main():
 
     print('loading wave source...', end=' ')
     X, sr = librosa.load(
-        args.input, sr=args.sr, mono=False, dtype=np.float32, res_type='kaiser_fast')
-    basename = os.path.splitext(os.path.basename(args.input))[0]
+        a_input, sr=a_sr, mono=False, dtype=np.float32, res_type='kaiser_fast')
+    basename = os.path.splitext(os.path.basename(a_input))[0]
     print('done')
 
     if X.ndim == 1:
@@ -145,40 +130,36 @@ def main():
         X = np.asarray([X, X])
 
     print('stft of wave source...', end=' ')
-    X_spec = spec_utils.wave_to_spectrogram(X, args.hop_length, args.n_fft)
+    X_spec = spec_utils.wave_to_spectrogram(X, a_hop_length, a_n_fft)
     print('done')
 
-    sp = Separator(model, device, args.batchsize, args.cropsize, args.postprocess)
+    sp = Separator(model, device, a_batchsize, a_cropsize, a_postprocess)
 
-    if args.tta:
+    if a_tta:
         y_spec, v_spec = sp.separate_tta(X_spec)
     else:
         y_spec, v_spec = sp.separate(X_spec)
 
     print('validating output directory...', end=' ')
-    output_dir = args.output_dir
+    output_dir = a_output_dir
     if output_dir != "":  # modifies output_dir if theres an arg specified
         output_dir = output_dir.rstrip('/') + '/'
         os.makedirs(output_dir, exist_ok=True)
     print('done')
 
     print('inverse stft of instruments...', end=' ')
-    wave = spec_utils.spectrogram_to_wave(y_spec, hop_length=args.hop_length)
+    wave = spec_utils.spectrogram_to_wave(y_spec, hop_length=a_hop_length)
     print('done')
     sf.write('{}{}_Instruments.wav'.format(output_dir, basename), wave.T, sr)
 
     print('inverse stft of vocals...', end=' ')
-    wave = spec_utils.spectrogram_to_wave(v_spec, hop_length=args.hop_length)
+    wave = spec_utils.spectrogram_to_wave(v_spec, hop_length=a_hop_length)
     print('done')
     sf.write('{}{}_Vocals.wav'.format(output_dir, basename), wave.T, sr)
 
-    if args.output_image:
+    if a_output_image:
         image = spec_utils.spectrogram_to_image(y_spec)
         utils.imwrite('{}{}_Instruments.jpg'.format(output_dir, basename), image)
 
         image = spec_utils.spectrogram_to_image(v_spec)
         utils.imwrite('{}{}_Vocals.jpg'.format(output_dir, basename), image)
-
-
-if __name__ == '__main__':
-    main()

@@ -87,60 +87,28 @@ def validate_epoch(dataloader, model, device):
     return sum_loss / len(dataloader.dataset)
 
 
-def train(logger, timestamp):
-    p = argparse.ArgumentParser()
-    p.add_argument('--gpu', '-g', type=int, default=-1)
-    p.add_argument('--seed', '-s', type=int, default=2019)
-    p.add_argument('--sr', '-r', type=int, default=44100)
-    p.add_argument('--hop_length', '-H', type=int, default=1024)
-    p.add_argument('--n_fft', '-f', type=int, default=2048)
-    p.add_argument('--dataset', '-d', required=True)
-    p.add_argument('--split_mode', '-S', type=str, choices=['random', 'subdirs'], default='random')
-    p.add_argument('--learning_rate', '-l', type=float, default=0.001)
-    p.add_argument('--lr_min', type=float, default=0.0001)
-    p.add_argument('--lr_decay_factor', type=float, default=0.9)
-    p.add_argument('--lr_decay_patience', type=int, default=6)
-    p.add_argument('--batchsize', '-B', type=int, default=4)
-    p.add_argument('--accumulation_steps', '-A', type=int, default=1)
-    p.add_argument('--cropsize', '-C', type=int, default=256)
-    p.add_argument('--patches', '-p', type=int, default=16)
-    p.add_argument('--val_rate', '-v', type=float, default=0.2)
-    p.add_argument('--val_filelist', '-V', type=str, default=None)
-    p.add_argument('--val_batchsize', '-b', type=int, default=6)
-    p.add_argument('--val_cropsize', '-c', type=int, default=256)
-    p.add_argument('--num_workers', '-w', type=int, default=6)
-    p.add_argument('--epoch', '-E', type=int, default=200)
-    p.add_argument('--reduction_rate', '-R', type=float, default=0.0)
-    p.add_argument('--reduction_level', '-L', type=float, default=0.2)
-    p.add_argument('--mixup_rate', '-M', type=float, default=0.0)
-    p.add_argument('--mixup_alpha', '-a', type=float, default=1.0)
-    p.add_argument('--pretrained_model', '-P', type=str, default=None)
-    p.add_argument('--debug', action='store_true')
-    args = p.parse_args()
-
-    logger.debug(vars(args))
-
-    random.seed(args.seed)
-    np.random.seed(args.seed)
-    torch.manual_seed(args.seed)
+def train(logger, timestamp, a_seed, a_val_filelist, a_dataset, a_split_mode, a_val_rate, a_debug, a_n_fft, a_pretrained_model, a_gpu, a_learning_rate, a_lr_decay_factor, a_lr_decay_patience, a_lr_min, a_sr, a_reduction_level, a_hop_length, a_patches, a_cropsize, a_reduction_rate, a_mixup_rate, a_mixup_alpha, a_batchsize, a_num_workers, a_val_cropsize, a_val_batchsize, a_epoch, a_accumulation_steps):
+    random.seed(a_seed)
+    np.random.seed(a_seed)
+    torch.manual_seed(a_seed)
 
     val_filelist = []
-    if args.val_filelist is not None:
-        with open(args.val_filelist, 'r', encoding='utf8') as f:
+    if a_val_filelist is not None:
+        with open(a_val_filelist, 'r', encoding='utf8') as f:
             val_filelist = json.load(f)
 
     train_filelist, val_filelist = dataset.train_val_split(
-        dataset_dir=args.dataset,
-        split_mode=args.split_mode,
-        val_rate=args.val_rate,
+        dataset_dir=a_dataset,
+        split_mode=a_split_mode,
+        val_rate=a_val_rate,
         val_filelist=val_filelist
     )
 
-    if args.debug:
+    if a_debug:
         logger.info('### DEBUG MODE')
         train_filelist = train_filelist[:1]
         val_filelist = val_filelist[:1]
-    elif args.val_filelist is None and args.split_mode == 'random':
+    elif a_val_filelist is None and a_split_mode == 'random':
         with open('val_{}.json'.format(timestamp), 'w', encoding='utf8') as f:
             json.dump(val_filelist, f, ensure_ascii=False)
 
@@ -148,66 +116,66 @@ def train(logger, timestamp):
         logger.info('{} {} {}'.format(i + 1, os.path.basename(X_fname), os.path.basename(y_fname)))
 
     device = torch.device('cpu')
-    model = nets.CascadedNet(args.n_fft, 32, 128)
-    if args.pretrained_model is not None:
-        model.load_state_dict(torch.load(args.pretrained_model, map_location=device))
-    if torch.cuda.is_available() and args.gpu >= 0:
-        device = torch.device('cuda:{}'.format(args.gpu))
+    model = nets.CascadedNet(a_n_fft, 32, 128)
+    if a_pretrained_model is not None:
+        model.load_state_dict(torch.load(a_pretrained_model, map_location=device))
+    if torch.cuda.is_available() and a_gpu >= 0:
+        device = torch.device('cuda:{}'.format(a_gpu))
         model.to(device)
 
     optimizer = torch.optim.Adam(
         filter(lambda p: p.requires_grad, model.parameters()),
-        lr=args.learning_rate
+        lr=a_learning_rate
     )
 
     scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
         optimizer,
-        factor=args.lr_decay_factor,
-        patience=args.lr_decay_patience,
+        factor=a_lr_decay_factor,
+        patience=a_lr_decay_patience,
         threshold=1e-6,
-        min_lr=args.lr_min,
+        min_lr=a_lr_min,
         verbose=True
     )
 
-    bins = args.n_fft // 2 + 1
-    freq_to_bin = 2 * bins / args.sr
+    bins = a_n_fft // 2 + 1
+    freq_to_bin = 2 * bins / a_sr
     unstable_bins = int(200 * freq_to_bin)
     stable_bins = int(22050 * freq_to_bin)
     reduction_weight = np.concatenate([
         np.linspace(0, 1, unstable_bins, dtype=np.float32)[:, None],
         np.linspace(1, 0, stable_bins - unstable_bins, dtype=np.float32)[:, None],
         np.zeros((bins - stable_bins, 1), dtype=np.float32),
-    ], axis=0) * args.reduction_level
+    ], axis=0) * a_reduction_level
 
     training_set = dataset.make_training_set(
         filelist=train_filelist,
-        sr=args.sr,
-        hop_length=args.hop_length,
-        n_fft=args.n_fft
+        sr=a_sr,
+        hop_length=a_hop_length,
+        n_fft=a_n_fft
     )
 
     train_dataset = dataset.VocalRemoverTrainingSet(
-        training_set * args.patches,
-        cropsize=args.cropsize,
-        reduction_rate=args.reduction_rate,
+        training_set * a_patches,
+        cropsize=a_cropsize,
+        reduction_rate=a_reduction_rate,
         reduction_weight=reduction_weight,
-        mixup_rate=args.mixup_rate,
-        mixup_alpha=args.mixup_alpha
+        mixup_rate=a_mixup_rate,
+        mixup_alpha=a_mixup_alpha
     )
 
     train_dataloader = torch.utils.data.DataLoader(
         dataset=train_dataset,
-        batch_size=args.batchsize,
+        batch_size=a_batchsize,
         shuffle=True,
-        num_workers=args.num_workers
+        num_workers=a_num_workers
     )
 
     patch_list = dataset.make_validation_set(
         filelist=val_filelist,
-        cropsize=args.val_cropsize,
-        sr=args.sr,
-        hop_length=args.hop_length,
-        n_fft=args.n_fft,
+        cropsize=a_val_cropsize,
+        sr=a_sr,
+        hop_length=a_hop_length,
+        n_fft=a_n_fft,
         offset=model.offset
     )
 
@@ -217,16 +185,16 @@ def train(logger, timestamp):
 
     val_dataloader = torch.utils.data.DataLoader(
         dataset=val_dataset,
-        batch_size=args.val_batchsize,
+        batch_size=a_val_batchsize,
         shuffle=False,
-        num_workers=args.num_workers
+        num_workers=a_num_workers
     )
 
     log = []
     best_loss = np.inf
-    for epoch in range(args.epoch):
+    for epoch in range(a_epoch):
         logger.info('# epoch {}'.format(epoch))
-        train_loss = train_epoch(train_dataloader, model, device, optimizer, args.accumulation_steps)
+        train_loss = train_epoch(train_dataloader, model, device, optimizer, a_accumulation_steps)
         val_loss = validate_epoch(val_dataloader, model, device)
 
         logger.info(
@@ -246,12 +214,12 @@ def train(logger, timestamp):
         with open('loss_{}.json'.format(timestamp), 'w', encoding='utf8') as f:
             json.dump(log, f, ensure_ascii=False)
 
-def train_start():
+def train_start(a_seed, a_val_filelist, a_dataset, a_split_mode, a_val_rate, a_debug, a_n_fft, a_pretrained_model, a_gpu, a_learning_rate, a_lr_decay_factor, a_lr_decay_patience, a_lr_min, a_sr, a_reduction_level, a_hop_length, a_patches, a_cropsize, a_reduction_rate, a_mixup_rate, a_mixup_alpha, a_batchsize, a_num_workers, a_val_cropsize, a_val_batchsize, a_epoch, a_accumulation_steps):
     timestamp = datetime.now().strftime('%Y%m%d%H%M%S')
     logger = setup_logger(__name__, 'train_{}.log'.format(timestamp))
 
     try:
-        train(logger, timestamp)
+        train(logger, timestamp, a_seed, a_val_filelist, a_dataset, a_split_mode, a_val_rate, a_debug, a_n_fft, a_pretrained_model, a_gpu, a_learning_rate, a_lr_decay_factor, a_lr_decay_patience, a_lr_min, a_sr, a_reduction_level, a_hop_length, a_patches, a_cropsize, a_reduction_rate, a_mixup_rate, a_mixup_alpha, a_batchsize, a_num_workers, a_val_cropsize, a_val_batchsize, a_epoch, a_accumulation_steps)
     except Exception as e:
         logger.exception(e)
 

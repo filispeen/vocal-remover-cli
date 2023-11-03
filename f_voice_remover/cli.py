@@ -55,6 +55,11 @@ def cli():
     default=-1,
 )
 @click.option(
+    "--debug",
+    type=bool,
+    default=False
+)
+@click.option(
     "--seed",
     "-s",
     type=int,
@@ -81,6 +86,8 @@ def cli():
 @click.option(
     "--dataset",
     "-d",
+    type=click.Path(),
+    help="Path to dataset",
     required=True
 )
 @click.option(
@@ -197,12 +204,14 @@ def cli():
 @click.option(
     "--pretrained_model",
     "-P",
-    type=str,
+    type=click.Path(),
     default=None
 )
 def train(**kwargs):
     print(kwargs)
-    run(["python", "train.py", "--gpu", str(kwargs['gpu']), "--dataset", str(kwargs['dataset']), '--seed', str(kwargs['seed']), '-r', str(kwargs['r']), '--hop_length', str(kwargs['hop_length']), '--n_fft', str(kwargs['n_fft']), '--split_mode', str(kwargs['split_mode']), '--learning_rate', str(kwargs['learning_rate']), '--lr_min', str(kwargs['lr_min']), '--lr_decay_factor', str(kwargs['lr_decay_factor']), '--lr_decay_patience', str(kwargs['lr_decay_patience']), '--batchsize', str(kwargs['batchsize']), '--accumulation_steps', str(kwargs['accumulation_steps']), '--cropsize', str(kwargs['cropsize']), '--patches', str(kwargs['patches']), '--val_rate', str(kwargs['val_rate']), '--val_filelist', str(kwargs['val_filelist']), '--val_batchsize', str(kwargs['val_batchsize']), '--val_cropsize', str(kwargs['val_cropsize']), '--num_workers', str(kwargs['num_workers']), '--epoch', str(kwargs['epoch']), '--reduction_rate', str(kwargs['reduction_rate']), '--reduction_level', str(kwargs['reduction_level']), '--mixup_rate', str(kwargs['mixup_rate']), '--mixup_alpha', str(kwargs['mixup_alpha']), '--pretrained_model', str(kwargs['pretrained_model'])])
+    from train import train_start
+    train_start(a_seed=kwargs['seed'], a_val_filelist=kwargs['val_filelist'], a_dataset=kwargs['dataset'], a_split_mode=kwargs['split_mode'], a_val_rate=kwargs['val_rate'], a_debug=kwargs['debug'], a_n_fft=kwargs['n_fft'], a_pretrained_model=kwargs['pretrained_model'], a_gpu=kwargs['gpu'], a_learning_rate=kwargs['learning_rate'], a_lr_decay_factor=kwargs['lr_decay_factor'], a_lr_decay_patience=kwargs['lr_decay_patience'], a_lr_min=kwargs['lr_min'], a_sr=kwargs['r'], a_reduction_level=kwargs['reduction_level'], a_hop_length=kwargs['hop_length'], a_patches=kwargs['patches'], a_cropsize=kwargs['cropsize'], a_reduction_rate=kwargs['reduction_rate'], a_mixup_rate=kwargs['mixup_rate'], a_mixup_alpha=kwargs['mixup_alpha'], a_batchsize=kwargs['batchsize'], a_num_workers=kwargs['num_workers'], a_val_cropsize=kwargs['val_cropsize'], a_val_batchsize=kwargs['val_batchsize'], a_epoch=kwargs['epoch'], a_accumulation_steps=kwargs['accumulation_steps'])
+    #run(["python", "train.py", "--gpu", str(kwargs['gpu']), "--dataset", str(kwargs['dataset']), '--seed', str(kwargs['seed']), '-r', str(kwargs['r']), '--hop_length', str(kwargs['hop_length']), '--n_fft', str(kwargs['n_fft']), '--split_mode', str(kwargs['split_mode']), '--learning_rate', str(kwargs['learning_rate']), '--lr_min', str(kwargs['lr_min']), '--lr_decay_factor', str(kwargs['lr_decay_factor']), '--lr_decay_patience', str(kwargs['lr_decay_patience']), '--batchsize', str(kwargs['batchsize']), '--accumulation_steps', str(kwargs['accumulation_steps']), '--cropsize', str(kwargs['cropsize']), '--patches', str(kwargs['patches']), '--val_rate', str(kwargs['val_rate']), '--val_filelist', str(kwargs['val_filelist']), '--val_batchsize', str(kwargs['val_batchsize']), '--val_cropsize', str(kwargs['val_cropsize']), '--num_workers', str(kwargs['num_workers']), '--epoch', str(kwargs['epoch']), '--reduction_rate', str(kwargs['reduction_rate']), '--reduction_level', str(kwargs['reduction_level']), '--mixup_rate', str(kwargs['mixup_rate']), '--mixup_alpha', str(kwargs['mixup_alpha']), '--pretrained_model', str(kwargs['pretrained_model'])])
 
 @cli.command()
 @click.option(
@@ -212,9 +221,14 @@ def train(**kwargs):
     default=-1
 )
 @click.option(
+    "--debug",
+    type=bool,
+    default=False
+)
+@click.option(
     "--pretrained_model",
     "-P",
-    type=str,
+    type=click.Path(),
     required=True
 )
 @click.option(
@@ -279,7 +293,9 @@ def train(**kwargs):
 )
 def infer(**kwargs):
     print(kwargs)
-    run(["python", "inference.py", "--gpu", str(kwargs['gpu']), '-r', str(kwargs['r']), '--hop_length', str(kwargs['hop_length']), '--n_fft', str(kwargs['n_fft']), '--batchsize', str(kwargs['batchsize']), '--cropsize', str(kwargs['cropsize']), "--output_image", str(kwargs["output_image"]), "--postprocess", str(kwargs["postprocess"]), "--tta", str(kwargs["tta"]), "--output_dir", str(kwargs["output_dir"])])
+    from inference import start_inference
+    start_inference(a_n_fft=kwargs['n_fft'], a_pretrained_model=kwargs['pretrained_model'], a_gpu=kwargs['gpu'], a_input=kwargs['input'], a_sr=kwargs['r'], a_hop_length=kwargs['hop_length'], a_batchsize=kwargs['batchsize'], a_cropsize=kwargs['cropsize'], a_postprocess=kwargs['postprocess'], a_tta=kwargs['tta'], a_output_dir=kwargs['output_dir'], a_output_image=kwargs['output_image'])
+    #run(["python", "inference.py", "--gpu", str(kwargs['gpu']), '-r', str(kwargs['r']), '--hop_length', str(kwargs['hop_length']), '--n_fft', str(kwargs['n_fft']), '--batchsize', str(kwargs['batchsize']), '--cropsize', str(kwargs['cropsize']), "--output_image", str(kwargs["output_image"]), "--postprocess", str(kwargs["postprocess"]), "--tta", str(kwargs["tta"]), "--output_dir", str(kwargs["output_dir"])])
 
 if __name__ == '__main__':
     cli()
