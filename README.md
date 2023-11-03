@@ -1,7 +1,7 @@
 # vocal-remover
 
 
-![Latest release](https://img.shields.io/github/commit-activity/t/filispeen/vocal-remover-cli)
+![Latest release](https://img.shields.io/github/commit-activity/t/filispeen/vocal-remover-cli?style=flat-square)
 [![GitHub all releases](https://img.shields.io/github/downloads/filispeen/vocal-remover-cli/total?style=flat-square)](https://github.com/filispeen/vocal-remover-cli/releases/latest)
 [![Releases](https://img.shields.io/github/downloads/filispeen/vocal-remover-cli/total?style=flat-square)](https://github.com/filispeen/vocal-remover-cli/releases)
 
