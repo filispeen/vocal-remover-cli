@@ -2,8 +2,8 @@
 
 
 ![Latest release](https://img.shields.io/github/commit-activity/t/filispeen/vocal-remover-cli)
-[![GitHub all releases](https://img.shields.io/github/downloads/filispeen/vocal-remover-cli/total)](https://github.com/filispeen/vocal-remover-cli/releases/latest)
-[![Releases](https://img.shields.io/github/downloads/filispeen/vocal-remover-cli/total.svg)](https://github.com/filispeen/vocal-remover-cli/releases)
+[![GitHub all releases](https://img.shields.io/github/downloads/filispeen/vocal-remover-cli/total?style=flat-square)](https://github.com/filispeen/vocal-remover-cli/releases/latest)
+[![Releases](https://img.shields.io/github/downloads/filispeen/vocal-remover-cli/total?style=flat-square)](https://github.com/filispeen/vocal-remover-cli/releases)
 
 This is a deep-learning-based tool to extract instrumental track from your songs.
 
