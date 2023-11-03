@@ -1,6 +1,6 @@
-# vocal-remover
+<h1><p style="text-align: center;">vocal-remover</p></h1>
 
-<p><img src="https://img.shields.io/github/commit-activity/t/filispeen/vocal-remover-cli?style=flat-square" alt="Latest release">
+<p align="center"><img src="https://img.shields.io/github/commit-activity/t/filispeen/vocal-remover-cli?style=flat-square" alt="Latest release">
 <img src="https://img.shields.io/github/forks/filispeen/vocal-remover-cli?style=flat-square" alt="GitHub forks">
 <img src="https://img.shields.io/github/contributors/filispeen/vocal-remover-cli?style=flat-square" alt="GitHub contributors">
 <img src="https://img.shields.io/github/issues/filispeen/vocal-remover-cli?style=flat-square" alt="GitHub issues">
