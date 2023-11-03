@@ -11,7 +11,7 @@ setup(
     install_requires=['opencv_python', 'tqdm', 'librosa'],
     entry_points={
         "console_scripts": [
-            "vc-remover = f_voice-remover.cli:main"],},
+            "vc-remover = f_voice_remover.cli:main"],},
     url = 'https://github.com/filispeen/so-vits-svc-discord-webhook-notification',
     keywords = ['vc', 'remover', 'cli', 'voice-removal', 'voice', 'vc-remover', 'voice-remover'],
       classifiers=[

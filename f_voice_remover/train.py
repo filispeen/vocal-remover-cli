@@ -87,7 +87,7 @@ def validate_epoch(dataloader, model, device):
     return sum_loss / len(dataloader.dataset)
 
 
-def main():
+def train(logger, timestamp):
     p = argparse.ArgumentParser()
     p.add_argument('--gpu', '-g', type=int, default=-1)
     p.add_argument('--seed', '-s', type=int, default=2019)
@@ -246,12 +246,21 @@ def main():
         with open('loss_{}.json'.format(timestamp), 'w', encoding='utf8') as f:
             json.dump(log, f, ensure_ascii=False)
 
-
-if __name__ == '__main__':
+def train_start():
     timestamp = datetime.now().strftime('%Y%m%d%H%M%S')
     logger = setup_logger(__name__, 'train_{}.log'.format(timestamp))
 
     try:
-        main()
+        train(logger, timestamp)
     except Exception as e:
         logger.exception(e)
+
+        
+#if __name__ == '__main__':
+#    timestamp = datetime.now().strftime('%Y%m%d%H%M%S')
+#    logger = setup_logger(__name__, 'train_{}.log'.format(timestamp))
+#
+#    try:
+#        main()
+#    except Exception as e:
+#        logger.exception(e)
