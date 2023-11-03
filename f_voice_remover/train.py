@@ -1,228 +1,193 @@
 import argparse
-from datetime import datetime
+from datetime import datetime as dt
+import gc
 import json
-import logging
 import os
 import random
 
 import numpy as np
 import torch
 import torch.nn as nn
-import torch.utils.data
 
 from lib import dataset
 from lib import nets
 from lib import spec_utils
 
 
-def setup_logger(name, logfile='LOGFILENAME.log'):
-    logger = logging.getLogger(name)
-    logger.setLevel(logging.DEBUG)
-    logger.propagate = False
+def train_val_split(mix_dir, inst_dir, val_rate, val_filelist_json):
+    input_exts = ['.wav', '.m4a', '.3gp', '.oma', '.mp3', '.mp4']
+    X_list = sorted([
+        os.path.join(mix_dir, fname)
+        for fname in os.listdir(mix_dir)
+        if os.path.splitext(fname)[1] in input_exts])
+    y_list = sorted([
+        os.path.join(inst_dir, fname)
+        for fname in os.listdir(inst_dir)
+        if os.path.splitext(fname)[1] in input_exts])
 
-    fh = logging.FileHandler(logfile, encoding='utf8')
-    fh.setLevel(logging.DEBUG)
-    fh_formatter = logging.Formatter(
-        '%(asctime)s - %(levelname)s - %(message)s')
-    fh.setFormatter(fh_formatter)
+    filelist = list(zip(X_list, y_list))
+    random.shuffle(filelist)
 
-    sh = logging.StreamHandler()
-    sh.setLevel(logging.INFO)
+    val_filelist = []
+    if val_filelist_json is not None:
+        with open(val_filelist_json, 'r', encoding='utf8') as f:
+            val_filelist = json.load(f)
 
-    logger.addHandler(fh)
-    logger.addHandler(sh)
+    if len(val_filelist) == 0:
+        val_size = int(len(filelist) * val_rate)
+        train_filelist = filelist[:-val_size]
+        val_filelist = filelist[-val_size:]
+    else:
+        train_filelist = [
+            pair for pair in filelist
+            if list(pair) not in val_filelist]
 
-    return logger
+    return train_filelist, val_filelist
 
 
-def train_epoch(dataloader, model, device, optimizer, accumulation_steps):
+def train_inner_epoch(X_train, y_train, model, optimizer, batchsize):
+    sum_loss = 0
     model.train()
-    sum_loss = 0
-    crit = nn.L1Loss()
+    aux_crit = nn.L1Loss()
+    criterion = nn.L1Loss(reduction='none')
+    perm = np.random.permutation(len(X_train))
+    instance_loss = np.zeros(len(X_train), dtype=np.float32)
+    for i in range(0, len(X_train), batchsize):
+        local_perm = perm[i: i + batchsize]
+        X_batch = torch.from_numpy(X_train[local_perm]).cuda()
+        y_batch = torch.from_numpy(y_train[local_perm]).cuda()
 
-    for itr, (X_batch, y_batch) in enumerate(dataloader):
-        X_batch = X_batch.to(device)
-        y_batch = y_batch.to(device)
-
-        pred, aux = model(X_batch)
-
-        loss_main = crit(pred * X_batch, y_batch)
-        loss_aux = crit(aux * X_batch, y_batch)
-
-        loss = loss_main * 0.8 + loss_aux * 0.2
-        accum_loss = loss / accumulation_steps
-        accum_loss.backward()
-
-        if (itr + 1) % accumulation_steps == 0:
-            optimizer.step()
-            model.zero_grad()
-
-        sum_loss += loss.item() * len(X_batch)
-
-    # the rest batch
-    if (itr + 1) % accumulation_steps != 0:
-        optimizer.step()
         model.zero_grad()
+        mask, aux = model(X_batch)
 
-    return sum_loss / len(dataloader.dataset)
+        aux_loss = aux_crit(X_batch * aux, y_batch)
+        X_batch = spec_utils.crop_center(mask, X_batch, False)
+        y_batch = spec_utils.crop_center(mask, y_batch, False)
+        abs_diff = criterion(X_batch * mask, y_batch)
+
+        loss = abs_diff.mean() * 0.9 + aux_loss * 0.1
+        loss.backward()
+        optimizer.step()
+
+        abs_diff_np = abs_diff.detach().cpu().numpy()
+        instance_loss[local_perm] = abs_diff_np.mean(axis=(1, 2, 3))
+        sum_loss += float(loss.detach().cpu().numpy()) * len(X_batch)
+
+    return sum_loss / len(X_train), instance_loss
 
 
-def validate_epoch(dataloader, model, device):
-    model.eval()
+def val_inner_epoch(dataloader, model):
     sum_loss = 0
-    crit = nn.L1Loss()
-
+    model.eval()
+    criterion = nn.L1Loss()
     with torch.no_grad():
         for X_batch, y_batch in dataloader:
-            X_batch = X_batch.to(device)
-            y_batch = y_batch.to(device)
+            X_batch = X_batch.cuda()
+            y_batch = y_batch.cuda()
+            mask = model.predict(X_batch)
+            X_batch = spec_utils.crop_center(mask, X_batch, False)
+            y_batch = spec_utils.crop_center(mask, y_batch, False)
 
-            pred = model.predict(X_batch)
-
-            y_batch = spec_utils.crop_center(y_batch, pred)
-            loss = crit(pred, y_batch)
-
-            sum_loss += loss.item() * len(X_batch)
+            loss = criterion(X_batch * mask, y_batch)
+            sum_loss += float(loss.detach().cpu().numpy()) * len(X_batch)
 
     return sum_loss / len(dataloader.dataset)
 
 
-def train(logger, timestamp, a_seed, a_val_filelist, a_dataset, a_split_mode, a_val_rate, a_debug, a_n_fft, a_pretrained_model, a_gpu, a_learning_rate, a_lr_decay_factor, a_lr_decay_patience, a_lr_min, a_sr, a_reduction_level, a_hop_length, a_patches, a_cropsize, a_reduction_rate, a_mixup_rate, a_mixup_alpha, a_batchsize, a_num_workers, a_val_cropsize, a_val_batchsize, a_epoch, a_accumulation_steps):
+def train_start(a_seed, a_pretrained_model, a_gpu, a_learning_rate, a_lr_decay_factor, a_lr_decay_patience, a_lr_min, a_mixture_dataset, a_instrumental_dataset, a_val_rate, a_val_filelist, a_debug, a_val_cropsize, a_sr, a_hop_length, a_val_batchsize, a_epoch, a_cropsize, a_patches, a_mixup_rate, a_mixup_alpha, a_inner_epoch, a_batchsize, a_oracle_rate, a_oracle_drop_rate):
     random.seed(a_seed)
     np.random.seed(a_seed)
     torch.manual_seed(a_seed)
+    timestamp = dt.now().strftime('%Y%m%d%H%M%S')
 
-    val_filelist = []
-    if a_val_filelist is not None:
-        with open(a_val_filelist, 'r', encoding='utf8') as f:
-            val_filelist = json.load(f)
-
-    train_filelist, val_filelist = dataset.train_val_split(
-        dataset_dir=a_dataset,
-        split_mode=a_split_mode,
-        val_rate=a_val_rate,
-        val_filelist=val_filelist
-    )
-
-    if a_debug:
-        logger.info('### DEBUG MODE')
-        train_filelist = train_filelist[:1]
-        val_filelist = val_filelist[:1]
-    elif a_val_filelist is None and a_split_mode == 'random':
-        with open('val_{}.json'.format(timestamp), 'w', encoding='utf8') as f:
-            json.dump(val_filelist, f, ensure_ascii=False)
-
-    for i, (X_fname, y_fname) in enumerate(val_filelist):
-        logger.info('{} {} {}'.format(i + 1, os.path.basename(X_fname), os.path.basename(y_fname)))
-
-    device = torch.device('cpu')
-    model = nets.CascadedNet(a_n_fft, 32, 128)
+    model = nets.CascadedASPPNet()
     if a_pretrained_model is not None:
-        model.load_state_dict(torch.load(a_pretrained_model, map_location=device))
-    if torch.cuda.is_available() and a_gpu >= 0:
-        device = torch.device('cuda:{}'.format(a_gpu))
-        model.to(device)
+        model.load_state_dict(torch.load(a_pretrained_model))
+    if a_gpu >= 0:
+        model.cuda()
 
-    optimizer = torch.optim.Adam(
-        filter(lambda p: p.requires_grad, model.parameters()),
-        lr=a_learning_rate
-    )
-
+    optimizer = torch.optim.Adam(model.parameters(), lr=a_learning_rate)
     scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
         optimizer,
         factor=a_lr_decay_factor,
         patience=a_lr_decay_patience,
-        threshold=1e-6,
         min_lr=a_lr_min,
-        verbose=True
-    )
+        verbose=True)
 
-    bins = a_n_fft // 2 + 1
-    freq_to_bin = 2 * bins / a_sr
-    unstable_bins = int(200 * freq_to_bin)
-    stable_bins = int(22050 * freq_to_bin)
-    reduction_weight = np.concatenate([
-        np.linspace(0, 1, unstable_bins, dtype=np.float32)[:, None],
-        np.linspace(1, 0, stable_bins - unstable_bins, dtype=np.float32)[:, None],
-        np.zeros((bins - stable_bins, 1), dtype=np.float32),
-    ], axis=0) * a_reduction_level
+    train_filelist, val_filelist = train_val_split(
+        mix_dir=a_mixture_dataset,
+        inst_dir=a_instrumental_dataset,
+        val_rate=a_val_rate,
+        val_filelist_json=a_val_filelist)
 
-    training_set = dataset.make_training_set(
-        filelist=train_filelist,
-        sr=a_sr,
-        hop_length=a_hop_length,
-        n_fft=a_n_fft
-    )
+    if a_debug:
+        print('### DEBUG MODE')
+        train_filelist = train_filelist[:1]
+        val_filelist = val_filelist[:1]
 
-    train_dataset = dataset.VocalRemoverTrainingSet(
-        training_set * a_patches,
-        cropsize=a_cropsize,
-        reduction_rate=a_reduction_rate,
-        reduction_weight=reduction_weight,
-        mixup_rate=a_mixup_rate,
-        mixup_alpha=a_mixup_alpha
-    )
+    with open('val_{}.json'.format(timestamp), 'w', encoding='utf8') as f:
+        json.dump(val_filelist, f, ensure_ascii=False)
 
-    train_dataloader = torch.utils.data.DataLoader(
-        dataset=train_dataset,
-        batch_size=a_batchsize,
-        shuffle=True,
-        num_workers=a_num_workers
-    )
+    for i, (X_fname, y_fname) in enumerate(val_filelist):
+        print(i + 1, os.path.basename(X_fname), os.path.basename(y_fname))
 
-    patch_list = dataset.make_validation_set(
+    val_dataset = dataset.make_validation_set(
         filelist=val_filelist,
         cropsize=a_val_cropsize,
         sr=a_sr,
         hop_length=a_hop_length,
-        n_fft=a_n_fft,
-        offset=model.offset
-    )
-
-    val_dataset = dataset.VocalRemoverValidationSet(
-        patch_list=patch_list
-    )
-
+        offset=model.offset)
     val_dataloader = torch.utils.data.DataLoader(
         dataset=val_dataset,
         batch_size=a_val_batchsize,
         shuffle=False,
-        num_workers=a_num_workers
-    )
+        num_workers=4)
 
     log = []
+    oracle_X = None
+    oracle_y = None
     best_loss = np.inf
     for epoch in range(a_epoch):
-        logger.info('# epoch {}'.format(epoch))
-        train_loss = train_epoch(train_dataloader, model, device, optimizer, a_accumulation_steps)
-        val_loss = validate_epoch(val_dataloader, model, device)
+        X_train, y_train = dataset.make_training_set(
+            train_filelist, a_cropsize, a_patches, a_sr, a_hop_length, model.offset)
 
-        logger.info(
-            '  * training loss = {:.6f}, validation loss = {:.6f}'
-            .format(train_loss, val_loss)
-        )
+        X_train, y_train = dataset.mixup_generator(
+            X_train, y_train, a_mixup_rate, a_mixup_alpha)
 
-        scheduler.step(val_loss)
+        if oracle_X is not None and oracle_y is not None:
+            perm = np.random.permutation(len(X_train))[:len(oracle_X)]
+            X_train[perm] = oracle_X
+            y_train[perm] = oracle_y
 
-        if val_loss < best_loss:
-            best_loss = val_loss
-            logger.info('  * best validation loss')
-            model_path = 'models/model_iter{}.pth'.format(epoch)
-            torch.save(model.state_dict(), model_path)
+        print('# epoch', epoch)
+        for inner_epoch in range(a_inner_epoch):
+            print('  * inner epoch {}'.format(inner_epoch))
+            train_loss, instance_loss = train_inner_epoch(
+                X_train, y_train, model, optimizer, a_batchsize)
+            val_loss = val_inner_epoch(val_dataloader, model)
 
-        log.append([train_loss, val_loss])
-        with open('loss_{}.json'.format(timestamp), 'w', encoding='utf8') as f:
-            json.dump(log, f, ensure_ascii=False)
+            print('    * training loss = {:.6f}, validation loss = {:.6f}'
+                  .format(train_loss * 1000, val_loss * 1000))
 
-def train_start(a_seed, a_val_filelist, a_dataset, a_split_mode, a_val_rate, a_debug, a_n_fft, a_pretrained_model, a_gpu, a_learning_rate, a_lr_decay_factor, a_lr_decay_patience, a_lr_min, a_sr, a_reduction_level, a_hop_length, a_patches, a_cropsize, a_reduction_rate, a_mixup_rate, a_mixup_alpha, a_batchsize, a_num_workers, a_val_cropsize, a_val_batchsize, a_epoch, a_accumulation_steps):
-    timestamp = datetime.now().strftime('%Y%m%d%H%M%S')
-    logger = setup_logger(__name__, 'train_{}.log'.format(timestamp))
+            scheduler.step(val_loss)
 
-    try:
-        train(logger, timestamp, a_seed, a_val_filelist, a_dataset, a_split_mode, a_val_rate, a_debug, a_n_fft, a_pretrained_model, a_gpu, a_learning_rate, a_lr_decay_factor, a_lr_decay_patience, a_lr_min, a_sr, a_reduction_level, a_hop_length, a_patches, a_cropsize, a_reduction_rate, a_mixup_rate, a_mixup_alpha, a_batchsize, a_num_workers, a_val_cropsize, a_val_batchsize, a_epoch, a_accumulation_steps)
-    except Exception as e:
-        logger.exception(e)
+            if val_loss < best_loss:
+                best_loss = val_loss
+                print('    * best validation loss')
+                model_path = 'models/model_iter{}.pth'.format(epoch)
+                torch.save(model.state_dict(), model_path)
 
+            log.append([train_loss, val_loss])
+            with open('log_{}.json'.format(timestamp), 'w', encoding='utf8') as f:
+                json.dump(log, f, ensure_ascii=False)
+
+        if a_oracle_rate > 0:
+            oracle_X, oracle_y, idx = dataset.get_oracle_data(
+                X_train, y_train, instance_loss, a_oracle_rate, a_oracle_drop_rate)
+            print('  * oracle loss = {:.6f}'.format(instance_loss[idx].mean() * 1000))
+
+        del X_train, y_train
+        gc.collect()
         
 #if __name__ == '__main__':
 #    timestamp = datetime.now().strftime('%Y%m%d%H%M%S')
