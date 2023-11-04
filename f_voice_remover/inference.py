@@ -92,23 +92,7 @@ class VocalRemover(object):
         return (pred + pred_tta) * 0.5 * coef, X_mag, np.exp(1.j * X_phase)
 
 
-def main():
-    p = argparse.ArgumentParser()
-    p.add_argument('--gpu', '-g', type=int, default=-1)
-    p.add_argument('--pretrained_model', '-P', type=str, default='models/baseline.pth')
-    p.add_argument('--input', '-i', required=True)
-    p.add_argument('--nn_architecture', '-n', type=str, choices=['default', '33966KB', '123821KB', '129605KB', '537238KB'], default='default')
-    p.add_argument('--model_params', '-m', type=str, default='')
-    p.add_argument('--window_size', '-w', type=int, default=512)
-    p.add_argument('--output_image', '-I', action='store_true')
-    p.add_argument('--deepextraction', '-D', action='store_true')
-    p.add_argument('--postprocess', '-p', action='store_true')
-    p.add_argument('--is_vocal_model', '-vm', action='store_true')
-    p.add_argument('--tta', '-t', action='store_true')
-    p.add_argument('--high_end_process', '-H', type=str, choices=['none', 'bypass', 'correlation', 'mirroring', 'mirroring2'], default='none')
-    p.add_argument('--aggressiveness', '-A', type=float, default=0.07)
-    args = p.parse_args()
-    
+def start_infer():    
     nets = importlib.import_module('lib.nets' + f'_{args.nn_architecture}'.replace('_default', ''), package=None)
 
     dir = 'ensembled/temp'
@@ -255,6 +239,5 @@ def main():
     print('Total time: {0:.{1}f}s'.format(time.time() - start_time, 1))
 
 
-if __name__ == '__main__':
-    main()
-
+#if __name__ == '__main__':
+#    main()

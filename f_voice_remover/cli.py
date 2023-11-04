@@ -43,8 +43,9 @@ click.Context.formatter_class = RichHelpFormatter
 @click.group(context_settings=CONTEXT_SETTINGS)
 def cli():
     """
-    To train a model, run train.\n
-    To infer a model, run infer.
+    Training own mdx-net model not availbe by originial developers of UVR. Maybe soon....
+    To infer a model, run infer.\n
+    To enseble infer a model, run ensemble_infer.
     """
 
 @cli.command()
@@ -191,13 +192,14 @@ def cli():
 )
 @click.option(
     "--debug",
-    type=bool,
+    is_flag=True,
     default=False
 )
 def train(**kwargs):
     print(kwargs)
-    from train import train_start
-    train_start(a_seed=kwargs['seed'], a_pretrained_model=kwargs['pretrained_model'], a_gpu=kwargs['gpu'], a_learning_rate=kwargs['learning_rate'], a_lr_decay_factor=kwargs['lr_decay_factor'], a_lr_decay_patience=kwargs['lr_decay_patience'], a_lr_min=kwargs['lr_min'], a_mixture_dataset=kwargs['mixture_dataset'], a_instrumental_dataset=kwargs['instrumental_dataset'], a_val_rate=kwargs['val_rate'], a_val_filelist=kwargs['val_filelist'], a_debug=kwargs['debug'], a_val_cropsize=kwargs['val_cropsize'], a_sr=kwargs['r'], a_hop_length=kwargs['hop_length'], a_val_batchsize=kwargs['val_batchsize'], a_epoch=kwargs['epoch'], a_cropsize=kwargs['cropsize'], a_patches=kwargs['patches'], a_mixup_rate=kwargs['mixup_rate'], a_mixup_alpha=kwargs['mixup_alpha'], a_inner_epoch=kwargs['inner_epoch'], a_batchsize=kwargs['batchsize'], a_oracle_rate=kwargs['oracle_rate'], a_oracle_drop_rate=kwargs['oracle_drop_rate'])
+    raise RuntimeWarning("Training unavailable. But you can inference your song with already available models.")
+    #from train import train_start
+    #train_start(a_seed=kwargs['seed'], a_pretrained_model=kwargs['pretrained_model'], a_gpu=kwargs['gpu'], a_learning_rate=kwargs['learning_rate'], a_lr_decay_factor=kwargs['lr_decay_factor'], a_lr_decay_patience=kwargs['lr_decay_patience'], a_lr_min=kwargs['lr_min'], a_mixture_dataset=kwargs['mixture_dataset'], a_instrumental_dataset=kwargs['instrumental_dataset'], a_val_rate=kwargs['val_rate'], a_val_filelist=kwargs['val_filelist'], a_debug=kwargs['debug'], a_val_cropsize=kwargs['val_cropsize'], a_sr=kwargs['r'], a_hop_length=kwargs['hop_length'], a_val_batchsize=kwargs['val_batchsize'], a_epoch=kwargs['epoch'], a_cropsize=kwargs['cropsize'], a_patches=kwargs['patches'], a_mixup_rate=kwargs['mixup_rate'], a_mixup_alpha=kwargs['mixup_alpha'], a_inner_epoch=kwargs['inner_epoch'], a_batchsize=kwargs['batchsize'], a_oracle_rate=kwargs['oracle_rate'], a_oracle_drop_rate=kwargs['oracle_drop_rate'])
     #run(["python", "train.py", "--gpu", str(kwargs['gpu']), "--dataset", str(kwargs['dataset']), '--seed', str(kwargs['seed']), '-r', str(kwargs['r']), '--hop_length', str(kwargs['hop_length']), '--n_fft', str(kwargs['n_fft']), '--split_mode', str(kwargs['split_mode']), '--learning_rate', str(kwargs['learning_rate']), '--lr_min', str(kwargs['lr_min']), '--lr_decay_factor', str(kwargs['lr_decay_factor']), '--lr_decay_patience', str(kwargs['lr_decay_patience']), '--batchsize', str(kwargs['batchsize']), '--accumulation_steps', str(kwargs['accumulation_steps']), '--cropsize', str(kwargs['cropsize']), '--patches', str(kwargs['patches']), '--val_rate', str(kwargs['val_rate']), '--val_filelist', str(kwargs['val_filelist']), '--val_batchsize', str(kwargs['val_batchsize']), '--val_cropsize', str(kwargs['val_cropsize']), '--num_workers', str(kwargs['num_workers']), '--epoch', str(kwargs['epoch']), '--reduction_rate', str(kwargs['reduction_rate']), '--reduction_level', str(kwargs['reduction_level']), '--mixup_rate', str(kwargs['mixup_rate']), '--mixup_alpha', str(kwargs['mixup_alpha']), '--pretrained_model', str(kwargs['pretrained_model'])])
 
 @cli.command()
@@ -205,53 +207,89 @@ def train(**kwargs):
     "--gpu",
     "-g",
     type=int,
-    default=-1
+    default=-1,
 )
 @click.option(
     "--pretrained_model",
     "-P",
     type=click.Path(),
-    required=True
+    default=None
 )
 @click.option(
     "--input",
     "-i",
-    type=str,
+    type=click.Path(),
     required=True
 )
 @click.option(
-    "-sr",
-    "-r",
-    type=int,
-    default=44100
+    "--nn_architecture",
+    "-n",
+    type=click.Choice(['default', '33966KB', '123821KB', '129605KB', '537238KB']),
+    default='default'
 )
 @click.option(
-    "--hop_length",
-    "-h",
+    "--model_params",
+    "-m",
+    type=str,
+    default=''
+)
+@click.option(
+    "--window_size",
+    "-w",
     type=int,
-    default=1024
+    default=512
 )
 @click.option(
     "--output_image",
     "-I",
     is_flag=True,
-    help="store_true"
+    default=False
+)
+@click.option(
+    "--deepextraction",
+    "-D",
+    is_flag=True,
+    default=False
 )
 @click.option(
     "--postprocess",
     "-p",
     is_flag=True,
-    help="store_true"
+    default=False
 )
 @click.option(
-    "--window_size",
-    default=512
+    "--is_vocal_model",
+    "-vm",
+    is_flag=True,
+    default=False
+)
+@click.option(
+    "--tta",
+    "-t",
+    is_flag=True,
+    default=False
+)
+@click.option(
+    "--high_end_process",
+    "-H",
+    type=click.Choice(['none', 'bypass', 'correlation', 'mirroring', 'mirroring2']),
+    default='none'
+)
+@click.option(
+    "--aggressiveness",
+    "-A",
+    type=float,
+    default=0.07,
 )
 def infer(**kwargs):
     print(kwargs)
-    from inference import start_inference
-    start_inference(a_pretrained_model=kwargs['pretrained_model'], a_gpu=kwargs['gpu'], a_input=kwargs['input'], a_sr=kwargs['r'], a_hop_length=kwargs['hop_length'], a_postprocess=kwargs['postprocess'], a_output_image=kwargs['output_image'], a_window_size=kwargs['window_size'])
+    from inference import start_infer
+    start_infer(a_nn_architecture=kwargs['nn_architecture'], a_model_params=kwargs['model_params'], a_pretrained_model=kwargs['pretrained_model'], a_gpu=kwargs['gpu'], a_input=kwargs['input'], a_high_end_process=kwargs['high_end_process'], a_window_size=kwargs['window_size'], a_tta=kwargs['tta'], a_aggressiveness=kwargs['aggressiveness'], a_postprocess=kwargs['postprocess'], a_is_vocal_model=kwargs['is_vocal_model'], a_output_image=kwargs['output_image'], a_deepextraction=kwargs['deepextraction'])
     #run(["python", "inference.py", "--gpu", str(kwargs['gpu']), '-r', str(kwargs['r']), '--hop_length', str(kwargs['hop_length']), '--n_fft', str(kwargs['n_fft']), '--batchsize', str(kwargs['batchsize']), '--cropsize', str(kwargs['cropsize']), "--output_image", str(kwargs["output_image"]), "--postprocess", str(kwargs["postprocess"]), "--tta", str(kwargs["tta"]), "--output_dir", str(kwargs["output_dir"])])
+
+@cli.command()
+def ensemble_infer(**kwargs):
+    print(kwargs)
 
 if __name__ == '__main__':
     cli()
