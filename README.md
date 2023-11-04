@@ -18,7 +18,7 @@ Download the original version from [here](https://github.com/tsurumeso/vocal-rem
 
 ### Install package
 ```
-pip install git+https://github.com/filispeen/vocal-remover-cli
+pip install git+https://github.com/filispeen/vocal-remover-cli@UVR_v1
 ```
 
 ## Usage
