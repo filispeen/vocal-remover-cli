@@ -290,6 +290,7 @@ def infer(**kwargs):
 @cli.command()
 def ensemble_infer(**kwargs):
     print(kwargs)
+    raise SystemExit("Ensemble currently in work...")
 
 if __name__ == '__main__':
     cli()
